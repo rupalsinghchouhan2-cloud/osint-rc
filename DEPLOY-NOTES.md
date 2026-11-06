@@ -1,76 +1,74 @@
 # OSINT RC V1 — ship notes
 
-## What's deployed
+## GitHub (canonical)
 
 | | |
 |---|---|
-| Vercel project | `osint-rc` (`prj_A933T3K7QL43hnKMhXV8Zua6DiOJ`, team `jayneet`) |
-| Deployment | `dpl_Bi2Hpb4XdFFJtUgVmKxPaHX3Gfc7` — **READY** |
-| Production alias | `https://osint-rc-jayneet.vercel.app` |
-| Deployment URL | `https://osint-95swbu6uk-jayneet.vercel.app` |
-| Payload | 1 file, 22,575 bytes, SHA1 `4e3a156c322fcb5aa7a56653b5a6e8948fa65d56` |
-| Verified | Vercel's stored file `uid` **equals** that SHA1 — the live file is byte-identical to the locally tested copy |
+| Repo | https://github.com/rupalsinghchouhan2-cloud/osint-rc |
+| Visibility | public |
+| Branch | `master` |
+| Commit | `6992ca1` — OSINT RC v1 — HD open-source RC replica |
 
-## Why one self-contained file
+**Verified from a clean clone:** `npm install` (113 packages, 3 s) → `npm run build` → **built in
+4.59 s**. Output is properly code-split:
 
-The Vercel connector rejects any JSON payload (`files[].data` should be string) — so `package.json` and
-`vercel.json` can never be transmitted, and `npm run build` can never run. Each `create_deployment`
-call is also a complete snapshot, not a patch, so split uploads can't be stitched together.
+```
+dist/assets/index-CJsfZx7r.js                195.55 kB │ gzip: 65.30 kB
+dist/assets/jspdf.es.min-B_w7XtIc.js         357.70 kB │ gzip: 118.00 kB
+dist/assets/html2canvas-pro.esm-DHKZFdC3.js  210.10 kB │ gzip: 51.38 kB
+dist/assets/html2canvas.esm-CBrSDip1.js      201.42 kB │ gzip: 48.03 kB
+dist/assets/index.es-kYFWfo1-.js             151.07 kB │ gzip: 51.68 kB
+dist/assets/purify.es-BwoZCkIS.js             22.03 kB │ gzip: 8.77 kB
+dist/assets/index-Cbk8-ai_.css                14.65 kB │ gzip: 4.47 kB
+```
 
-So the app is shipped as a **single `index.html`** that carries:
+jspdf / html2canvas-pro are already `import()`ed lazily at export time, so they never block first paint.
 
-* the compiled React bundle and the CSS, both **gzip + base64**, inflated in-browser with
-  `DecompressionStream('gzip')` and executed via a blob-URL module import;
-* an **import map** pointing at `esm.sh` for React 18, qrcode, jspdf and html2canvas-pro.
-  (Blob-URL modules resolve bare specifiers against the page's import map — this is required.)
+**E2E against that build:** PNG **3027 × 2732**, PDF **1012 KB**, 0 console errors, and
+`scrollWidth === innerWidth` at both 390 px and 1440 px.
 
-No build step, no `package.json`, no `vercel.json`, no node_modules.
+## Deploying on Vercel (you, manually)
 
-## The one thing blocking the public URL
+Import the repo at https://vercel.com/new → the `osint-rc` project already has
+`framework: vite`, `build: npm run build`, `install: npm install`, `output: dist` — accept them and
+deploy. `vercel.json` in the repo supplies the SPA rewrite plus security headers.
 
-Every route returns **302 → `https://vercel.com/sso-api?url=…`**, i.e. *"Protected by Vercel
-Authentication"*. That's **Deployment Protection** on the `jayneet` team, not an app bug — the same
-302 is served for `/`, `/app.js` and `/app.css` alike.
+> **Deployment Protection is still on** for the `jayneet` team. A fresh Git deploy will inherit
+> it and 302 to `vercel.com/sso-api` just like before. Turn it off at
+> **jayneet → Settings → Deployment Protection → Vercel Authentication → Disabled**, or the URL
+> will keep asking you to log in.
 
-The Vercel connector exposes no deployment-protection endpoint, so I can't toggle it from here.
+## Everything else that is already deployed
 
-**To open it publicly (30 seconds, you):**
-Vercel dashboard → **jayneet** team → **Settings → Deployment Protection** → set
-**Vercel Authentication** to **Disabled** (or "Standard Protection" and turn it off for Production),
-then open `https://osint-rc-jayneet.vercel.app`.
+Deployment `dpl_Bi2Hpb4XdFFJtUgVmKxPaHX3Gfc7` (single-file variant) is `READY` on the `osint-rc`
+project, alias `osint-rc-jayneet.vercel.app`. It is byte-identical to `dist-v1/index.html`
+(SHA1 `4e3a156c322fcb5aa7a56653b5a6e8948fa65d56`, confirmed against Vercel's stored file uid).
+The Git deploy will supersede it.
 
-Nothing needs redeploying — the build is already READY.
+## Why the single-file variant exists
 
-> GitHub was the suggested fallback: the **github connector reports `unsupported`**, there are no git
-> credentials or `gh` CLI in the sandbox, so a repo push isn't possible from here either.
+The Vercel connector rejects any JSON payload (`files[].data` should be string), so `package.json`
+and `vercel.json` could never be transmitted and `npm run build` could never run; each
+`create_deployment` is also a full snapshot, not a patch. So the app was shipped as one
+`index.html` carrying the bundle + CSS gzip+base64'd, inflated in-browser with
+`DecompressionStream('gzip')` and run as a blob-URL module against an `esm.sh` import map.
 
-## Verified against the live byte-identical file
+`dist-v1/index.html` keeps that as a **no-build fallback** — drag it onto any static host. It is not
+needed once the Git deploy is live.
 
-- MP54AA1199 → `RAJKUMAR TIWARI`, `ESCORTS / POWERTRAC 445`, `Agricultural Tractor (LMV)`, DIESEL,
-  2146 cc, seat 1, BLUE, `21-Jan-2021`, Universal Sompo, insurance to `17-Dec-2026`,
-  `UMARIA DTO, Madhya Pradesh`, 484661.
-- **PNG export 3027 × 2732** vs the original API's 2820 × 1800 → wider, and higher total pixels.
-- **PDF 1011 KB**, 297 mm page, JPEG 0.96, red `REPLICA — NOT A GOVERNMENT DOCUMENT` footer bar.
-- **Mobile 390×844:** `scrollWidth === innerWidth` (390), 0 page errors, full-width buttons,
-  card fits edge to edge.
-- **Desktop 1440×950:** `scrollWidth === innerWidth` (1440), 0 page errors.
-- Missing fields print `—`; every value carries a provenance chip (`SINGLE SOURCE`, `not returned`).
-- Secondary source shows **DISABLED** with its `DEPLOYMENT_DELETED` reason; app states
-  `1/2 sources responded — cross-verification OFF` and `DEGRADED MODE`.
+## Verified payload (MP54AA1199)
 
-## Adding your correct APIs later
+`RAJKUMAR TIWARI` · `ESCORTS / POWERTRAC 445` · `Agricultural Tractor (LMV)` · DIESEL · 2146 cc ·
+seat 1 · BLUE · `21-Jan-2021` · Universal Sompo · insurance to `17-Dec-2026` ·
+`UMARIA DTO, Madhya Pradesh` · PIN 484661.
 
-`lib/resolve.js` → `SOURCE_REGISTRY`. Add an adapter that returns
+## Adding your own sources
+
+`lib/resolve.js` → `SOURCE_REGISTRY`. Add an adapter returning
 `{ ok, source, lastSeen, ageDays, masked, fields }`, push it into the `Promise.all`, set
-`enabled: true`, ship a registry entry with `label` / `host` / `kind`. The merge, the provenance
-panel, the conflict chips and the export path all pick it up with no other change.
+`enabled: true`, ship a registry entry with `label` / `host` / `kind` / `note`. Merge, provenance,
+conflict chips and export all pick it up unchanged.
 
-For true source scraping (rather than wrappers), the natural home is a Vercel serverless function
-per source — the browser can't set `User-Agent` or dodge CORS, which is exactly why the secondary
-adapter had to be disabled.
-
-## Local files
-
-- `dist-v1/index.html` — the exact deployed artefact.
-- `src/`, `lib/` — the real React source (still the canonical codebase).
-- `vite.config.js`, `vite.ext.config.js` — normal build, and the CDN-externalised build used here.
+Browser-side scraping has hard limits: no `User-Agent` control, no CORS bypass. For true
+source-scraping, add a Vercel serverless function per source — that is the next step for an
+accurate pipeline.
